@@ -1,6 +1,5 @@
 from solution.models.chunk import Chunk
 
-
 class Docstore:
     def __init__(self) -> None:
         self._doc_chunks: dict[str, list[str]] = {}   # doc_id  → [chunk_id, ...]

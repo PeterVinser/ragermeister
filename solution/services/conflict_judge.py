@@ -1,8 +1,8 @@
 import json
-
-from solution.interfaces.llm_judge import LLMJudgeInterface
+from solution.services.llm import LLM
 from solution.models.chunk import Chunk
 from solution.models.conflict import ConflictLabel, JudgeResult
+from solution.models.message import Message
 
 _SYSTEM_PROMPT = """\
 You are a conflict-detection judge for a knowledge base. Given a new text chunk and its \
@@ -18,8 +18,8 @@ Respond ONLY with valid JSON:
 
 
 class ConflictJudge:
-    def __init__(self, llm: LLMJudgeInterface) -> None:
-        self._llm = llm
+    def __init__(self) -> None:
+        self._llm = LLM()
 
     def judge(self, new_chunk: Chunk, neighbors: list[Chunk]) -> JudgeResult:
         if not neighbors:
@@ -30,7 +30,7 @@ class ConflictJudge:
                 rationale="No neighbors in index.",
             )
         user_content = self._build_user_content(new_chunk, neighbors)
-        raw = self._llm.judge_raw(_SYSTEM_PROMPT, user_content)
+        raw = self._llm.get_response(_SYSTEM_PROMPT, [Message(role="user", content=user_content)])
         return self._parse(raw, neighbors)
 
     def _build_user_content(self, new_chunk: Chunk, neighbors: list[Chunk]) -> str:

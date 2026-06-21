@@ -1,15 +1,16 @@
+from openai import AzureOpenAI
 import numpy as np
-from sentence_transformers import SentenceTransformer
 
-from solution.interfaces.embedder import EmbedderInterface
+class Embedder:
+    def __init__(self):
+        self.client = AzureOpenAI()
 
-
-class SentenceTransformerEmbedder(EmbedderInterface):
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
-        self._model = SentenceTransformer(model_name)
-
-    def embed(self, texts: list[str]) -> np.ndarray:
-        return np.array(
-            self._model.encode(texts, normalize_embeddings=True),
-            dtype=np.float32,
+    def embed(self, text: list[str]) -> np.ndarray:
+        response = self.client.embeddings.create(
+            input=text,
+            model="text-embedding-3-large"
         )
+
+        embeddings = [e.embedding for e in response.data]
+        
+        return np.array(embeddings, dtype=np.float32)

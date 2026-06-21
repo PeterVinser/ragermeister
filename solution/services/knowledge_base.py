@@ -3,7 +3,7 @@ from typing import Callable
 
 import numpy as np
 
-from solution.interfaces.embedder import EmbedderInterface
+from solution.services.embedder import Embedder
 from solution.models.chunk import Chunk
 from solution.models.conflict import (
     ConflictLabel,
@@ -51,18 +51,16 @@ class KnowledgeBase:
 
     def __init__(
         self,
-        embedder: EmbedderInterface,
         vector_db: VectorDB,
         docstore: Docstore,
         judge: ConflictJudge,
         conflict_sink: Callable[[ConflictReport], None] | None = None,
     ) -> None:
-        self._embedder = embedder
+        self._embedder = Embedder()
         self._vdb = vector_db
         self._docstore = docstore
         self._judge = judge
         self.conflict_sink = conflict_sink
-        # Stores embeddings for chunks that are pending conflict resolution
         self._pending_embeddings: dict[str, np.ndarray] = {}
 
     def query(self, text: str, k: int = 5) -> list[Chunk]:
