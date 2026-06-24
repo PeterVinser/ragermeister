@@ -2,9 +2,9 @@ from solution.models.chunk import Chunk
 
 class Docstore:
     def __init__(self) -> None:
-        self._doc_chunks: dict[str, list[str]] = {}   # doc_id  → [chunk_id, ...]
-        self._chunks: dict[str, Chunk] = {}            # chunk_id → Chunk
-        self._vec_to_chunk: dict[int, str] = {}        # vec_id   → chunk_id
+        self._doc_chunks: dict[str, list[str]] = {}
+        self._chunks: dict[str, Chunk] = {}
+        self._vec_to_chunk: dict[int, str] = {}
 
     def add(self, chunk: Chunk) -> None:
         self._chunks[chunk.chunk_id] = chunk

@@ -1,7 +1,5 @@
-from __future__ import annotations
-
-from dataclasses import dataclass, field
 from enum import Enum
+from pydantic import BaseModel, Field
 
 from solution.models.chunk import Chunk
 
@@ -13,17 +11,13 @@ class ConflictLabel(str, Enum):
     SUPERSEDES = "supersedes"
     NEEDS_HUMAN = "needs_human"
 
-
-@dataclass
-class JudgeResult:
+class JudgeResult(BaseModel):
     label: ConflictLabel
     implicated_ids: list[str]
     proposed_action: str
     rationale: str
 
-
-@dataclass
-class ConflictReport:
+class ConflictReport(BaseModel):
     report_id: str
     new_chunk: Chunk
     judge_result: JudgeResult
@@ -31,14 +25,12 @@ class ConflictReport:
 
 class DecisionAction(str, Enum):
     INSERT = "insert"
-    UPDATE = "update"   # remove implicated + add new
-    DELETE = "delete"   # remove implicated, discard new
-    SKIP = "skip"       # discard new, keep implicated
+    UPDATE = "update"
+    DELETE = "delete"
+    SKIP = "skip"
 
-
-@dataclass
-class Decision:
+class Decision(BaseModel):
     report_id: str
     action: DecisionAction
     new_chunk: Chunk | None = None
-    chunk_ids_to_remove: list[str] = field(default_factory=list)
+    chunk_ids_to_remove: list[str] = Field(default_factory=list)

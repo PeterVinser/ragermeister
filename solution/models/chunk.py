@@ -1,10 +1,8 @@
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field
 
-
-@dataclass
-class Chunk:
+class Chunk(BaseModel):
     chunk_id: str
     doc_id: str
     text: str
-    metadata: dict = field(default_factory=dict)
+    metadata: dict = Field(default_factory=dict)
     vec_id: int = -1  # -1 until committed to FAISS
