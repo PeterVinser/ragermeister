@@ -38,7 +38,6 @@ from solution.services.graph_house_keeper import GraphHouseKeeper
 from solution.services.hybrid_house_keeper import HybridHouseKeeper
 from solution.services.knowledge_base import KnowledgeBase
 from solution.services.metadata_house_keeper import MetadataHouseKeeper
-from solution.services.rrf_house_keeper import RRFHouseKeeper
 from solution.services.vector_house_keeper import VectorHouseKeeper
 from solution.services.policies.base import ResolutionPolicy
 from solution.services.policies.recency import RecencyPolicy
@@ -448,37 +447,6 @@ def run_hybrid(
     final = sorted(d for d in docstore._doc_chunks if docstore._doc_chunks[d])  # noqa: SLF001
     return BaselineRun("hybrid", auditor.calls, final, _aggregate(auditor.calls))
 
-
-def run_rrf(
-    events: list[GoldEvent],
-    oracle: OracleJudge,
-    dim: int,
-    extractor: EntityExtractor,
-    embedder: Embedder,
-    policy_factory: Callable[[], ResolutionPolicy],
-    topic_vocab: dict[str, list[str]] | None = None,
-) -> BaselineRun:
-    vdb, docstore = VectorDB(dim), Docstore()
-    auditor = AuditingJudge(oracle, docstore)
-    # RRF fuses the two PARENT strategies' independent rankings — vote, not guidance.
-    vector_hk = VectorHouseKeeper(vdb, docstore)
-    graph_hk = GraphHouseKeeper(
-        vector_db=vdb,
-        docstore=docstore,
-        resolver=_make_resolver(extractor, embedder, topic_vocab),
-    )
-    housekeeper = RRFHouseKeeper(vector_hk, graph_hk)
-    kb = KnowledgeBase(vdb, docstore, auditor, housekeeper)  # type: ignore[arg-type]
-    manager = ResolutionManager(policy_factory(), kb.apply_decision)
-    kb.conflict_sink = manager.submit
-    for ev in events:
-        oracle.current = ev
-        auditor.current_seq = ev.seq
-        kb.ingest(ev.to_ingest())
-    final = sorted(d for d in docstore._doc_chunks if docstore._doc_chunks[d])  # noqa: SLF001
-    return BaselineRun("rrf(v+g)", auditor.calls, final, _aggregate(auditor.calls))
-
-
 def _print_alias_clusters(resolver: EntityResolver) -> None:
     """Metric hook: alias clusters per canonical node. Compared against a gold entity set
     this yields the false-discovery-rate of unresolved entities, which caps graph-only and
@@ -646,11 +614,8 @@ def main(use_llm_extractor: bool = False, resolve: bool = False) -> None:
     graph = run_graph_only(
         events, oracle, dim, extractor, embedder, policy_factory, topic_vocab
     )
-    rrf = run_rrf(
-        events, oracle, dim, extractor, embedder, policy_factory, topic_vocab
-    )
     hybrid = run_hybrid(
         events, oracle, dim, extractor, embedder, policy_factory, topic_vocab
     )
 
-    print_audit(events, [vec, metadata, graph, rrf, hybrid])
+    print_audit(events, [vec, metadata, graph, hybrid])
