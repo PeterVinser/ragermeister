@@ -2,6 +2,7 @@ from typing import Type, TypeVar
 from openai import AzureOpenAI
 from openai.types.chat import ChatCompletion
 from solution.models.message import Message
+from solution.services import cost_meter
 from pydantic import BaseModel
 
 T = TypeVar('T', bound=BaseModel)
@@ -24,12 +25,15 @@ class LLM:
             reasoning_effort="none"
         )
 
+        cost_meter.record("llm_calls", 1)
         if response.usage:
             self.input_token_count += response.usage.prompt_tokens
             self.output_token_count += response.usage.completion_tokens
+            cost_meter.record("llm_tokens_in", response.usage.prompt_tokens)
+            cost_meter.record("llm_tokens_out", response.usage.completion_tokens)
 
         response_message = response.choices[0].message.content
-        
+
         return response_message
     
     def get_structured_response(self, system_prompt: str, messages: list[Message], model_class: Type[T]) -> T:
@@ -44,8 +48,11 @@ class LLM:
             verbosity="low"
         )
         
+        cost_meter.record("llm_calls", 1)
         if response.usage:
             self.input_token_count += response.usage.prompt_tokens
             self.output_token_count += response.usage.completion_tokens
+            cost_meter.record("llm_tokens_in", response.usage.prompt_tokens)
+            cost_meter.record("llm_tokens_out", response.usage.completion_tokens)
 
         return response.choices[0].message.parsed

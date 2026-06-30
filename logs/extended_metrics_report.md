@@ -1,14 +1,28 @@
 # Extended Metrics & LaTeX Tables
 
+Source run: `run_20260630_092642.jsonl` (5 shuffles).
+
 This report presents the computed metrics and the pre-filled LaTeX tables requested in the paper.
 
-## Extended Retrieval Metrics
-| Baseline | Precision | Recall (Affected-Recall) | F1-Score | Exact Match Rate | Clean-Control FP Pressure |
+## Discovery Metrics
+_**Candidate yield** = fraction of surfaced candidates that are gold-implicated — an on-target-vs-noisy index, **not precision**: a surfaced non-implicated doc is not a false positive (the judge filters it, and under the oracle the real FP rate is 0). **Candidate pressure** = mean #candidates on clean events (a count, **not** a false-alert rate). The headline quality metrics are detect-rate, affected-recall and macro-F1._
+
+| Baseline | Detect-Rate | Affected-Recall | Macro-F1 | Candidate Yield | Candidate Pressure (clean) |
 |---|---|---|---|---|---|
-| **vector-only** | 22.86% | 98.83% | 37.13% | 0.00% | 4.91 |
-| **metadata-only** | 24.15% | 87.53% | 37.85% | 2.86% | 3.94 |
-| **graph-only** | 18.03% | 76.75% | 29.19% | 0.00% | 4.33 |
-| **hybrid** | 23.01% | 99.61% | 37.39% | 0.00% | 4.91 |
+| **vector-only** | 98.96% | 98.88% | 0.996 | 22.86% | 4.91 |
+| **metadata-only** | 90.13% | 86.07% | 0.940 | 24.15% | 3.94 |
+| **graph-only** | 78.70% | 77.98% | 0.901 | 18.03% | 4.33 |
+| **hybrid** | 99.74% | 99.55% | 0.998 | 23.01% | 4.91 |
+
+## Status-Classification Macro-F1
+Predicted status (`verdict`) vs gold (`expected_label`) over all events. **Caveat:** these logs use the OracleJudge, which never confuses one conflict class for another, so conflict-class precision is 1.0 by construction and macro-F1 tracks recall. Re-run with the real `ConflictJudge` for an end-to-end number.
+
+| Baseline | Macro-F1 (4-class) | Macro-F1 (conflict-only) | F1 clean | F1 duplicate | F1 contradiction | F1 supersedes |
+|---|---|---|---|---|---|---|
+| **vector-only** | 0.996 ± 0.005 | 0.995 | 0.998 | 1.000 | 0.992 | 0.993 |
+| **metadata-only** | 0.940 ± 0.014 | 0.927 | 0.979 | 0.980 | 0.838 | 0.961 |
+| **graph-only** | 0.901 ± 0.023 | 0.883 | 0.955 | 0.922 | 0.865 | 0.861 |
+| **hybrid** | 0.998 ± 0.004 | 0.997 | 0.999 | 1.000 | 0.992 | 1.000 |
 
 ## LaTeX Tables to Copy into Paper
 Below are the pre-filled LaTeX tables for your paper.
@@ -68,5 +82,23 @@ Supersede (AR) & 0.986 & 0.902 & 0.747 & 1.000 \\
 \bottomrule
 \end{tabular}
 \caption{detect-rate (DR) and affected-recall (AR) by conflict type.}
+\end{table}
+```
+
+### Table 4: Status-Classification Macro-F1
+```latex
+\begin{table}[h]
+\centering
+\begin{tabular}{lccccc}
+\toprule
+Baseline & Macro-F1 & clean & duplicate & contradiction & supersedes \\
+\midrule
+Vector-only & 0.996 & 0.998 & 1.000 & 0.992 & 0.993 \\
+Metadata-only & 0.940 & 0.979 & 0.980 & 0.838 & 0.961 \\
+Graph-only & 0.901 & 0.955 & 0.922 & 0.865 & 0.861 \\
+Hybrid & 0.998 & 0.999 & 1.000 & 0.992 & 1.000 \\
+\bottomrule
+\end{tabular}
+\caption{Status-classification macro-F1 and per-class F1 (oracle judge; conflict-class precision is 1.0 by construction).}
 \end{table}
 ```

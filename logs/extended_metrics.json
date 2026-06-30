@@ -1,12 +1,45 @@
 {
   "vector-only": {
-    "Precision": 0.2285714285714286,
-    "Recall": 0.9883116883116884,
-    "F1-Score": 0.37127564621308184,
-    "Exact Match Rate": 0.0,
-    "FP Pressure": 4.913294797687861,
+    "Candidate Yield": 0.2285714285714286,
+    "Candidate Pressure (clean)": 4.913294797687861,
     "Detect Rate": 0.9896,
     "Affected Recall": 0.9888,
+    "Macro-F1": 0.9956597533577676,
+    "Macro-F1 std": 0.005279245273557557,
+    "Macro-F1 (conflict-only)": 0.9949803921568627,
+    "status_per_class_f1": {
+      "clean": 0.9976978369604823,
+      "duplicate": 1.0,
+      "contradiction": 0.992,
+      "supersedes": 0.9929411764705882
+    },
+    "confusion_matrix_total": {
+      "clean": {
+        "clean": 865,
+        "duplicate": 0,
+        "contradiction": 0,
+        "supersedes": 0
+      },
+      "duplicate": {
+        "clean": 0,
+        "duplicate": 105,
+        "contradiction": 0,
+        "supersedes": 0
+      },
+      "contradiction": {
+        "clean": 1,
+        "duplicate": 0,
+        "contradiction": 64,
+        "supersedes": 0
+      },
+      "supersedes": {
+        "clean": 3,
+        "duplicate": 0,
+        "contradiction": 0,
+        "supersedes": 212
+      }
+    },
+    "cost": {},
     "by_label": {
       "duplicate": {
         "Detect Rate": 1.0,
@@ -23,13 +56,46 @@
     }
   },
   "metadata-only": {
-    "Precision": 0.24151515151515152,
-    "Recall": 0.8753246753246753,
-    "F1-Score": 0.37852629960639433,
-    "Exact Match Rate": 0.02857142857142857,
-    "FP Pressure": 3.9352601156069364,
+    "Candidate Yield": 0.24151515151515152,
+    "Candidate Pressure (clean)": 3.9352601156069364,
     "Detect Rate": 0.9013,
     "Affected Recall": 0.8607,
+    "Macro-F1": 0.9395540212817866,
+    "Macro-F1 std": 0.013589559952650283,
+    "Macro-F1 (conflict-only)": 0.9265649441817528,
+    "status_per_class_f1": {
+      "clean": 0.9785212525818876,
+      "duplicate": 0.9804878048780488,
+      "contradiction": 0.8378787878787878,
+      "supersedes": 0.961328239788422
+    },
+    "confusion_matrix_total": {
+      "clean": {
+        "clean": 865,
+        "duplicate": 0,
+        "contradiction": 0,
+        "supersedes": 0
+      },
+      "duplicate": {
+        "clean": 4,
+        "duplicate": 101,
+        "contradiction": 0,
+        "supersedes": 0
+      },
+      "contradiction": {
+        "clean": 18,
+        "duplicate": 0,
+        "contradiction": 47,
+        "supersedes": 0
+      },
+      "supersedes": {
+        "clean": 16,
+        "duplicate": 0,
+        "contradiction": 0,
+        "supersedes": 199
+      }
+    },
+    "cost": {},
     "by_label": {
       "duplicate": {
         "Detect Rate": 0.9619047619047618,
@@ -46,13 +112,46 @@
     }
   },
   "graph-only": {
-    "Precision": 0.18025974025974026,
-    "Recall": 0.7675324675324675,
-    "F1-Score": 0.2919485836803914,
-    "Exact Match Rate": 0.0,
-    "FP Pressure": 4.331791907514451,
+    "Candidate Yield": 0.18025974025974026,
+    "Candidate Pressure (clean)": 4.331791907514451,
     "Detect Rate": 0.787,
     "Affected Recall": 0.7798,
+    "Macro-F1": 0.9008711385826172,
+    "Macro-F1 std": 0.022568242481899398,
+    "Macro-F1 (conflict-only)": 0.8828889618289427,
+    "status_per_class_f1": {
+      "clean": 0.9548176688436409,
+      "duplicate": 0.9222037422037422,
+      "contradiction": 0.8652636928289102,
+      "supersedes": 0.8611994504541756
+    },
+    "confusion_matrix_total": {
+      "clean": {
+        "clean": 865,
+        "duplicate": 0,
+        "contradiction": 0,
+        "supersedes": 0
+      },
+      "duplicate": {
+        "clean": 15,
+        "duplicate": 90,
+        "contradiction": 0,
+        "supersedes": 0
+      },
+      "contradiction": {
+        "clean": 15,
+        "duplicate": 0,
+        "contradiction": 50,
+        "supersedes": 0
+      },
+      "supersedes": {
+        "clean": 52,
+        "duplicate": 0,
+        "contradiction": 0,
+        "supersedes": 163
+      }
+    },
+    "cost": {},
     "by_label": {
       "duplicate": {
         "Detect Rate": 0.8571428571428571,
@@ -69,13 +168,46 @@
     }
   },
   "hybrid": {
-    "Precision": 0.23012987012987016,
-    "Recall": 0.9961038961038962,
-    "F1-Score": 0.3738815521890355,
-    "Exact Match Rate": 0.0,
-    "FP Pressure": 4.913294797687861,
+    "Candidate Yield": 0.23012987012987016,
+    "Candidate Pressure (clean)": 4.913294797687861,
     "Detect Rate": 0.9974,
     "Affected Recall": 0.9955,
+    "Macro-F1": 0.9978559077809799,
+    "Macro-F1 std": 0.004288184438040332,
+    "Macro-F1 (conflict-only)": 0.9973333333333333,
+    "status_per_class_f1": {
+      "clean": 0.9994236311239193,
+      "duplicate": 1.0,
+      "contradiction": 0.992,
+      "supersedes": 1.0
+    },
+    "confusion_matrix_total": {
+      "clean": {
+        "clean": 865,
+        "duplicate": 0,
+        "contradiction": 0,
+        "supersedes": 0
+      },
+      "duplicate": {
+        "clean": 0,
+        "duplicate": 105,
+        "contradiction": 0,
+        "supersedes": 0
+      },
+      "contradiction": {
+        "clean": 1,
+        "duplicate": 0,
+        "contradiction": 64,
+        "supersedes": 0
+      },
+      "supersedes": {
+        "clean": 0,
+        "duplicate": 0,
+        "contradiction": 0,
+        "supersedes": 215
+      }
+    },
+    "cost": {},
     "by_label": {
       "duplicate": {
         "Detect Rate": 1.0,

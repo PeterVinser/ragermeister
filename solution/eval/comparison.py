@@ -24,6 +24,7 @@ import argparse
 import json
 import random
 import statistics
+import time
 from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -35,6 +36,7 @@ from solution.models.chunk import Chunk
 from solution.models.conflict import ConflictLabel, JudgeResult
 from solution.models.entity import EntityMention, EntityType
 from solution.models.event import EventType, IngestEvent
+from solution.services import cost_meter
 from solution.services.docstore import Docstore
 from solution.services.embedder import Embedder
 from solution.services.entity_candidates_judge import EntityCandidatesJudge
@@ -603,37 +605,41 @@ def _run_all_baselines_parallel(
     run_id: str,
     shuffle_idx: int,
     seed: int | None,
-) -> tuple[list[BaselineRun], list[dict]]:
+) -> tuple[list[BaselineRun], list[dict], dict[str, dict]]:
     """Run all 4 baselines concurrently on the same event list.
 
     Each baseline gets its own OracleJudge instance (oracle.current is mutated per-event
     inside the loop, so sharing one across threads would race). Each also builds its own
-    records list; we merge them at the end. Returns (runs, all_records).
+    records list; we merge them at the end. Cost (LLM calls/tokens, embedding calls, wall
+    time) is attributed per baseline via the thread-local ``cost_meter`` — each thunk tags
+    its worker thread, so even the shared extractor/embedder accrue to the right baseline.
+    Returns (runs, all_records, cost_by_baseline).
     """
-    def _vec() -> tuple[BaselineRun, list[dict]]:
-        rec: list[dict] = []
-        run = run_vector_only(events, OracleJudge(), dim, policy_factory, rec, run_id, shuffle_idx, seed)
-        return run, rec
+    cost_meter.reset()
 
-    def _meta() -> tuple[BaselineRun, list[dict]]:
-        rec: list[dict] = []
-        run = run_metadata_only(events, OracleJudge(), dim, extractor, embedder, policy_factory, topic_vocab, rec, run_id, shuffle_idx, seed)
-        return run, rec
+    def _timed(name: str, fn: Callable[[list[dict]], BaselineRun]):
+        def thunk() -> tuple[BaselineRun, list[dict], float]:
+            cost_meter.set_context(name)        # tag THIS worker thread
+            rec: list[dict] = []
+            t0 = time.perf_counter()
+            run = fn(rec)
+            return run, rec, time.perf_counter() - t0
+        return thunk
 
-    def _graph() -> tuple[BaselineRun, list[dict]]:
-        rec: list[dict] = []
-        run = run_graph_only(events, OracleJudge(), dim, extractor, embedder, policy_factory, topic_vocab, log_id=None, verbose=False, records=rec, run_id=run_id, shuffle_idx=shuffle_idx, seed=seed)
-        return run, rec
-
-    def _hybrid() -> tuple[BaselineRun, list[dict]]:
-        rec: list[dict] = []
-        run = run_hybrid(events, OracleJudge(), dim, extractor, embedder, policy_factory, topic_vocab, rec, run_id, shuffle_idx, seed)
-        return run, rec
-
-    tasks = {"vector-only": _vec, "metadata-only": _meta, "graph-only": _graph, "hybrid": _hybrid}
+    tasks = {
+        "vector-only": _timed("vector-only", lambda rec: run_vector_only(
+            events, OracleJudge(), dim, policy_factory, rec, run_id, shuffle_idx, seed)),
+        "metadata-only": _timed("metadata-only", lambda rec: run_metadata_only(
+            events, OracleJudge(), dim, extractor, embedder, policy_factory, topic_vocab, rec, run_id, shuffle_idx, seed)),
+        "graph-only": _timed("graph-only", lambda rec: run_graph_only(
+            events, OracleJudge(), dim, extractor, embedder, policy_factory, topic_vocab,
+            log_id=None, verbose=False, records=rec, run_id=run_id, shuffle_idx=shuffle_idx, seed=seed)),
+        "hybrid": _timed("hybrid", lambda rec: run_hybrid(
+            events, OracleJudge(), dim, extractor, embedder, policy_factory, topic_vocab, rec, run_id, shuffle_idx, seed)),
+    }
     ordered = ("vector-only", "metadata-only", "graph-only", "hybrid")
 
-    results: dict[str, tuple[BaselineRun, list[dict]]] = {}
+    results: dict[str, tuple[BaselineRun, list[dict], float]] = {}
     with ThreadPoolExecutor(max_workers=4) as pool:
         futures = {pool.submit(fn): name for name, fn in tasks.items()}
         for fut in as_completed(futures):
@@ -644,12 +650,21 @@ def _run_all_baselines_parallel(
                 print(f"  [shuffle {shuffle_idx}] {name} FAILED: {exc}")
                 raise
 
+    # All threads joined -> registry stable. Attribute counts + wall time per baseline.
+    counts = cost_meter.snapshot()
+    cost_by_baseline: dict[str, dict] = {}
+    for n in ordered:
+        if n in results:
+            c = dict(counts.get(n, {}))
+            c["seconds"] = round(results[n][2], 3)
+            cost_by_baseline[n] = c
+
     runs = [results[n][0] for n in ordered if n in results]
     all_records: list[dict] = []
     for n in ordered:
         if n in results:
             all_records.extend(results[n][1])
-    return runs, all_records
+    return runs, all_records, cost_by_baseline
 
 
 # --------------------------------------------------------------------------- metrics from log
@@ -750,6 +765,18 @@ def aggregate_summaries(per_shuffle: list[dict[str, dict]]) -> dict[str, dict]:
                 entry["by_label"][lbl] = {
                     "detect_rate_mean": round(statistics.mean(rates), 4),
                     "detect_rate_std": round(statistics.stdev(rates) if len(rates) > 1 else 0.0, 4),
+                }
+
+        # Cost: LLM calls/tokens, embedding calls, wall time — mean ± std across shuffles.
+        cost_runs = [r["cost"] for r in runs if "cost" in r]
+        if cost_runs:
+            cost_keys = sorted({k for c in cost_runs for k in c})
+            entry["cost"] = {}
+            for k in cost_keys:
+                vals = [c.get(k, 0.0) for c in cost_runs]
+                entry["cost"][k] = {
+                    "mean": round(statistics.mean(vals), 3),
+                    "std": round(statistics.stdev(vals) if len(vals) > 1 else 0.0, 3),
                 }
         agg[name] = entry
     return agg
@@ -959,17 +986,34 @@ def main() -> None:
         meta_rec: list[dict] = []
         graph_rec: list[dict] = []
         hybrid_rec: list[dict] = []
-        vec = run_vector_only(events, oracle, dim, policy_factory, vec_rec, run_id, -1, None)
-        metadata = run_metadata_only(events, oracle, dim, extractor, embedder, policy_factory, topic_vocab, meta_rec, run_id, -1, None)
-        graph = run_graph_only(
+        cost_meter.reset()
+        _elapsed: dict[str, float] = {}
+
+        def _seq(name: str, fn: Callable[[], BaselineRun]) -> BaselineRun:
+            cost_meter.set_context(name)
+            t0 = time.perf_counter()
+            run = fn()
+            _elapsed[name] = round(time.perf_counter() - t0, 3)
+            return run
+
+        vec = _seq("vector-only", lambda: run_vector_only(events, oracle, dim, policy_factory, vec_rec, run_id, -1, None))
+        metadata = _seq("metadata-only", lambda: run_metadata_only(events, oracle, dim, extractor, embedder, policy_factory, topic_vocab, meta_rec, run_id, -1, None))
+        graph = _seq("graph-only", lambda: run_graph_only(
             events, oracle, dim, extractor, embedder, policy_factory, topic_vocab,
             log_id=run_id, verbose=True,
             records=graph_rec, run_id=run_id, shuffle_idx=-1, seed=None,
-        )
-        hybrid = run_hybrid(events, oracle, dim, extractor, embedder, policy_factory, topic_vocab, hybrid_rec, run_id, -1, None)
+        ))
+        hybrid = _seq("hybrid", lambda: run_hybrid(events, oracle, dim, extractor, embedder, policy_factory, topic_vocab, hybrid_rec, run_id, -1, None))
+        cost_meter.set_context(None)
         runs = [vec, metadata, graph, hybrid]
         all_records = vec_rec + meta_rec + graph_rec + hybrid_rec
-        per_shuffle_summaries = [summarize_records(all_records)]
+        single_summary = summarize_records(all_records)
+        _counts = cost_meter.snapshot()
+        for _name in single_summary:
+            _c = dict(_counts.get(_name, {}))
+            _c["seconds"] = _elapsed.get(_name, 0.0)
+            single_summary[_name]["cost"] = _c
+        per_shuffle_summaries = [single_summary]
         if not args.no_audit:
             print_audit(events, runs)
         else:
@@ -981,12 +1025,16 @@ def main() -> None:
         variants = generate_shuffles(events, args.shuffles, args.seed)
         for shuffle_idx, (seed, shuffled_events) in enumerate(variants):
             print(f"\n[Shuffle {shuffle_idx + 1}/{args.shuffles}] seed={seed} — 4 baselines in parallel...")
-            runs, records = _run_all_baselines_parallel(
+            runs, records, cost = _run_all_baselines_parallel(
                 shuffled_events, dim, extractor, embedder, policy_factory, topic_vocab,
                 run_id=run_id, shuffle_idx=shuffle_idx, seed=seed,
             )
             all_records.extend(records)
-            per_shuffle_summaries.append(summarize_records(records))
+            shuffle_summary = summarize_records(records)
+            for _name, _cost in cost.items():
+                if _name in shuffle_summary:
+                    shuffle_summary[_name]["cost"] = _cost
+            per_shuffle_summaries.append(shuffle_summary)
             if not args.no_audit:
                 print_audit(shuffled_events, runs)
             else:
