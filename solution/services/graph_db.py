@@ -610,6 +610,81 @@ class NetworkXGraphStore(GraphStore):
                 break
         return out[:top_n]
 
+    # ------------------------------------------------------------------ snapshot
+
+    def snapshot(self) -> dict:
+        """Compact temporal snapshot of current graph state for run logging.
+
+        Returns counts per node type, edge tier/status counts, per-entity
+        active-chunk tallies, and the size distribution of connected components
+        in the active-chunk subgraph. Cheap at corpus scale (~100-200 docs).
+        """
+        from collections import defaultdict
+
+        node_counts: dict[str, dict[str, int]] = defaultdict(lambda: {"active": 0, "tombstoned": 0})
+        for _, d in self._g.nodes(data=True):
+            env: GraphNode = d["env"]
+            status = "active" if env.status is NodeStatus.ACTIVE else "tombstoned"
+            node_counts[env.type.value][status] += 1
+
+        struct = sem_active = sem_revoked = 0
+        for _, _, d in self._g.edges(data=True):
+            env: GraphEdge = d["env"]
+            if env.tier is EdgeTier.STRUCTURAL:
+                struct += 1
+            elif env.status is EdgeStatus.ACTIVE:
+                sem_active += 1
+            else:
+                sem_revoked += 1
+
+        # Per-entity: how many active chunks MENTION it (arrival-graph richness).
+        entity_clusters = []
+        for n, d in self._g.nodes(data=True):
+            env: GraphNode = d["env"]
+            if env.type is not NodeType.ENTITY or env.status is not NodeStatus.ACTIVE:
+                continue
+            active_chunks = sum(
+                1
+                for src, _, key in self._g.in_edges(n, keys=True)
+                if key == Relation.MENTIONS.value
+                and (cn := self.get_node(src)) is not None
+                and cn.type is NodeType.CHUNK
+                and cn.status is NodeStatus.ACTIVE
+            )
+            entity_clusters.append({
+                "id": n,
+                "name": env.attrs.get("name", ""),
+                "type": env.attrs.get("entity_type", ""),
+                "active_chunk_count": active_chunks,
+            })
+        entity_clusters.sort(key=lambda x: -x["active_chunk_count"])
+
+        # Connected components of active-chunk subgraph (over non-revoked edges).
+        active_chunk_ids = {
+            n for n, d in self._g.nodes(data=True)
+            if d["env"].type is NodeType.CHUNK and d["env"].status is NodeStatus.ACTIVE
+        }
+        g_chunks = nx.Graph()
+        g_chunks.add_nodes_from(active_chunk_ids)
+        for u, v, d in self._g.edges(data=True):
+            env_e: GraphEdge = d["env"]
+            if u in active_chunk_ids and v in active_chunk_ids and env_e.status is not EdgeStatus.REVOKED:
+                g_chunks.add_edge(u, v)
+        components = sorted(
+            (len(c) for c in nx.connected_components(g_chunks)), reverse=True
+        )
+
+        return {
+            "nodes": {k: dict(v) for k, v in node_counts.items()},
+            "edges": {
+                "structural": struct,
+                "semantic_active": sem_active,
+                "semantic_revoked": sem_revoked,
+            },
+            "entity_clusters": entity_clusters,
+            "chunk_components": components,
+        }
+
     # ------------------------------------------------------------------ views
 
     def active_chunk_node_ids(self) -> list[str]:
